@@ -345,13 +345,13 @@ security definer
 set search_path = public
 as $$
 begin
-  if payload ? 'items_sp08' then
+  if payload ? 'items' then
     delete from items_sp08 where true;
     insert into items_sp08 (id, name, barcode, category, price, cost, stock, unit, low_stock, expiry)
     select x->>'id', x->>'name', coalesce(x->>'barcode',''), coalesce(x->>'category',''),
            coalesce((x->>'price')::numeric,0), coalesce((x->>'cost')::numeric,0), coalesce((x->>'stock')::numeric,0),
            coalesce(x->>'unit',''), coalesce((x->>'lowStock')::numeric,0), coalesce(x->>'expiry','')
-    from jsonb_array_elements(payload->'items_sp08') x;
+    from jsonb_array_elements(payload->'items') x;
   end if;
 
   if payload ? 'itemCatalog' then
@@ -362,27 +362,27 @@ begin
     from jsonb_array_elements(payload->'itemCatalog') x;
   end if;
 
-  if payload ? 'categories_sp08' then
+  if payload ? 'categories' then
     delete from categories_sp08 where true;
     insert into categories_sp08 (name)
-    select jsonb_array_elements_text(payload->'categories_sp08');
+    select jsonb_array_elements_text(payload->'categories');
   end if;
 
-  if payload ? 'suppliers_sp08' then
+  if payload ? 'suppliers' then
     delete from suppliers_sp08 where true;
     insert into suppliers_sp08 (id, name, contact, address)
     select x->>'id', x->>'name', coalesce(x->>'contact',''), coalesce(x->>'address','')
-    from jsonb_array_elements(payload->'suppliers_sp08') x;
+    from jsonb_array_elements(payload->'suppliers') x;
   end if;
 
-  if payload ? 'cashiers_sp08' then
+  if payload ? 'cashiers' then
     delete from cashiers_sp08 where true;
     insert into cashiers_sp08 (id, name, pin)
     select x->>'id', x->>'name', coalesce(x->>'pin','')
-    from jsonb_array_elements(payload->'cashiers_sp08') x;
+    from jsonb_array_elements(payload->'cashiers') x;
   end if;
 
-  if payload ? 'purchases_sp08' then
+  if payload ? 'purchases' then
     delete from purchases_sp08 where true;
     insert into purchases_sp08 (id, date, supplier_id, supplier_name, item_id, item_name, qty, cost, total, notes, proof_data_url, proof_name)
     select x->>'id',
@@ -390,22 +390,22 @@ begin
            x->>'supplierId', x->>'supplierName', x->>'itemId', x->>'itemName',
            (x->>'qty')::numeric, (x->>'cost')::numeric, (x->>'total')::numeric, coalesce(x->>'notes',''),
            x->>'proof', x->>'proofName'
-    from jsonb_array_elements(payload->'purchases_sp08') x;
+    from jsonb_array_elements(payload->'purchases') x;
   end if;
 
-  if payload ? 'expenses_sp08' then
+  if payload ? 'expenses' then
     delete from expenses_sp08 where true;
     insert into expenses_sp08 (id, date, period, category, amount, notes)
     select x->>'id', nullif(x->>'date','')::date, coalesce(x->>'period',''), coalesce(x->>'category',''),
            coalesce((x->>'amount')::numeric,0), coalesce(x->>'notes','')
-    from jsonb_array_elements(payload->'expenses_sp08') x;
+    from jsonb_array_elements(payload->'expenses') x;
   end if;
 
-  if payload ? 'customers_sp08' then
+  if payload ? 'customers' then
     delete from customers_sp08 where true;
     insert into customers_sp08 (id, name, phone, notes, balance)
     select x->>'id', x->>'name', coalesce(x->>'phone',''), coalesce(x->>'notes',''), coalesce((x->>'balance')::numeric,0)
-    from jsonb_array_elements(payload->'customers_sp08') x;
+    from jsonb_array_elements(payload->'customers') x;
   end if;
 
   if payload ? 'customerPayments' then
@@ -416,7 +416,7 @@ begin
     from jsonb_array_elements(payload->'customerPayments') x;
   end if;
 
-  if payload ? 'sales_sp08' then
+  if payload ? 'sales' then
     -- TRUNCATE (not DELETE) so this doesn't fire the per-row totals triggers
     -- thousands of times over on a full replace — reset the summary tables
     -- directly instead, then let the inserts below rebuild them correctly.
@@ -429,26 +429,26 @@ begin
     select x->>'id', (x->>'receiptNo')::integer, (x->>'date')::timestamptz, x->>'customer', x->>'cashier', x->>'payment',
            (x->>'cash')::numeric, (x->>'subtotal')::numeric, (x->>'discountPct')::numeric, (x->>'discountAmt')::numeric,
            (x->>'taxPct')::numeric, (x->>'taxAmt')::numeric, (x->>'grand')::numeric
-    from jsonb_array_elements(payload->'sales_sp08') x;
+    from jsonb_array_elements(payload->'sales') x;
 
     insert into sale_lines_sp08 (sale_id, item_id, item_name, barcode, price, qty, unit, subtotal)
     select s->>'id', l->>'itemId', l->>'name', coalesce(l->>'barcode',''), (l->>'price')::numeric,
            (l->>'qty')::numeric, coalesce(l->>'unit',''), (l->>'subtotal')::numeric
-    from jsonb_array_elements(payload->'sales_sp08') s,
+    from jsonb_array_elements(payload->'sales') s,
          jsonb_array_elements(coalesce(s->'lines','[]'::jsonb)) l;
   end if;
 
-  if payload ? 'refunds_sp08' then
+  if payload ? 'refunds' then
     delete from refund_lines_sp08 where true;
     delete from refunds_sp08 where true;
     insert into refunds_sp08 (id, sale_id, receipt_no, date, total, reason, cashier)
     select x->>'id', x->>'saleId', (x->>'receiptNo')::integer, (x->>'date')::timestamptz,
            (x->>'total')::numeric, coalesce(x->>'reason',''), x->>'cashier'
-    from jsonb_array_elements(payload->'refunds_sp08') x;
+    from jsonb_array_elements(payload->'refunds') x;
 
     insert into refund_lines_sp08 (refund_id, item_id, item_name, qty, price, refund_amount)
     select r->>'id', l->>'itemId', l->>'name', (l->>'qty')::numeric, (l->>'price')::numeric, (l->>'refundAmount')::numeric
-    from jsonb_array_elements(payload->'refunds_sp08') r,
+    from jsonb_array_elements(payload->'refunds') r,
          jsonb_array_elements(coalesce(r->'lines','[]'::jsonb)) l;
   end if;
 
@@ -465,14 +465,14 @@ begin
          jsonb_array_elements(coalesce(h->'cart','[]'::jsonb)) c;
   end if;
 
-  if payload ? 'shifts_sp08' then
+  if payload ? 'shifts' then
     delete from shifts_sp08 where true;
     insert into shifts_sp08 (id, cashier_name, start, "end", opening_cash, cash_sales, card_sales, wallet_sales, cash_refunds, txn_count, expected_cash, actual_cash, difference, notes)
     select x->>'id', x->>'cashierName', (x->>'start')::timestamptz, (x->>'end')::timestamptz,
            (x->>'openingCash')::numeric, (x->>'cashSales')::numeric, (x->>'cardSales')::numeric, (x->>'walletSales')::numeric,
            (x->>'cashRefunds')::numeric, (x->>'txnCount')::integer, (x->>'expectedCash')::numeric,
            (x->>'actualCash')::numeric, (x->>'difference')::numeric, coalesce(x->>'notes','')
-    from jsonb_array_elements(payload->'shifts_sp08') x;
+    from jsonb_array_elements(payload->'shifts') x;
   end if;
 
   if payload ? 'activeShift' then
@@ -489,11 +489,11 @@ begin
     end if;
   end if;
 
-  if payload ? 'settings_sp08' then
+  if payload ? 'settings' then
     delete from settings_sp08 where true;
     insert into settings_sp08 (key, value)
     select k, v
-    from jsonb_each_text(payload->'settings_sp08') as t(k, v);
+    from jsonb_each_text(payload->'settings') as t(k, v);
   end if;
 
   if payload ? 'receiptCounter' then
@@ -519,7 +519,7 @@ declare
   result jsonb;
 begin
   select jsonb_build_object(
-    'items_sp08', coalesce((select jsonb_agg(jsonb_build_object(
+    'items', coalesce((select jsonb_agg(jsonb_build_object(
       'id', id, 'name', name, 'barcode', barcode, 'category', category,
       'price', price, 'cost', cost, 'stock', stock, 'unit', unit, 'lowStock', low_stock, 'expiry', expiry
     )) from items_sp08), '[]'::jsonb),
@@ -529,27 +529,27 @@ begin
       'price', price, 'cost', cost, 'unit', unit, 'lowStock', low_stock
     )) from item_catalog_sp08), '[]'::jsonb),
 
-    'categories_sp08', coalesce((select jsonb_agg(name) from categories_sp08), '[]'::jsonb),
+    'categories', coalesce((select jsonb_agg(name) from categories_sp08), '[]'::jsonb),
 
-    'suppliers_sp08', coalesce((select jsonb_agg(jsonb_build_object(
+    'suppliers', coalesce((select jsonb_agg(jsonb_build_object(
       'id', id, 'name', name, 'contact', contact, 'address', address
     )) from suppliers_sp08), '[]'::jsonb),
 
-    'cashiers_sp08', coalesce((select jsonb_agg(jsonb_build_object(
+    'cashiers', coalesce((select jsonb_agg(jsonb_build_object(
       'id', id, 'name', name, 'pin', pin
     )) from cashiers_sp08), '[]'::jsonb),
 
-    'purchases_sp08', coalesce((select jsonb_agg(jsonb_build_object(
+    'purchases', coalesce((select jsonb_agg(jsonb_build_object(
       'id', id, 'date', date, 'supplierId', supplier_id, 'supplierName', supplier_name,
       'itemId', item_id, 'itemName', item_name, 'qty', qty, 'cost', cost, 'total', total,
       'notes', notes, 'proof', proof_data_url, 'proofName', proof_name
     )) from purchases_sp08), '[]'::jsonb),
 
-    'expenses_sp08', coalesce((select jsonb_agg(jsonb_build_object(
+    'expenses', coalesce((select jsonb_agg(jsonb_build_object(
       'id', id, 'date', date, 'period', period, 'category', category, 'amount', amount, 'notes', notes
     )) from expenses_sp08), '[]'::jsonb),
 
-    'customers_sp08', coalesce((select jsonb_agg(jsonb_build_object(
+    'customers', coalesce((select jsonb_agg(jsonb_build_object(
       'id', id, 'name', name, 'phone', phone, 'notes', notes, 'balance', balance
     )) from customers_sp08), '[]'::jsonb),
 
@@ -567,7 +567,7 @@ begin
       )
     ) from held_sales_sp08 h), '[]'::jsonb),
 
-    'shifts_sp08', coalesce((select jsonb_agg(jsonb_build_object(
+    'shifts', coalesce((select jsonb_agg(jsonb_build_object(
       'id', id, 'cashierName', cashier_name, 'start', start, 'end', "end",
       'openingCash', opening_cash, 'cashSales', cash_sales, 'cardSales', card_sales,
       'walletSales', wallet_sales, 'cashRefunds', cash_refunds, 'txnCount', txn_count,
@@ -578,7 +578,7 @@ begin
       'id', id, 'cashierId', cashier_id, 'cashierName', cashier_name, 'start', start, 'openingCash', opening_cash
     ) from active_shift_sp08 limit 1),
 
-    'settings_sp08', coalesce((select jsonb_object_agg(key, value) from settings_sp08), '{}'::jsonb),
+    'settings', coalesce((select jsonb_object_agg(key, value) from settings_sp08), '{}'::jsonb),
 
     'receiptCounter', (select (value)::integer from meta_sp08 where key = 'receiptCounter')
   ) into result;
@@ -694,10 +694,10 @@ begin
   ) sl on true;
 
   select jsonb_build_object(
-    'sales_sp08', v_sales,
+    'sales', v_sales,
     'hasMore', coalesce(v_has_more, false),
 
-    'refunds_sp08', coalesce((
+    'refunds', coalesce((
       select jsonb_agg(x order by x->>'date' desc) from (
         select jsonb_build_object(
           'id', r.id, 'saleId', r.sale_id, 'receiptNo', r.receipt_no, 'date', r.date,
@@ -771,7 +771,7 @@ $$;
 -- Supabase's statement timeout — this function itself has no size limit,
 -- the timeout is on how much work fits in one call.
 
-create or replace function sync_append_sales_batch_sp08(sales_sp08 jsonb)
+create or replace function sync_append_sales_batch_sp08(sales jsonb)
 returns void
 language plpgsql
 security definer
@@ -782,13 +782,13 @@ begin
   select x->>'id', (x->>'receiptNo')::integer, (x->>'date')::timestamptz, x->>'customer', x->>'cashier', x->>'payment',
          (x->>'cash')::numeric, (x->>'subtotal')::numeric, (x->>'discountPct')::numeric, (x->>'discountAmt')::numeric,
          (x->>'taxPct')::numeric, (x->>'taxAmt')::numeric, (x->>'grand')::numeric
-  from jsonb_array_elements(sales_sp08) x
+  from jsonb_array_elements(sales) x
   on conflict (id) do nothing;
 
   insert into sale_lines_sp08 (sale_id, item_id, item_name, barcode, price, qty, unit, subtotal)
   select s->>'id', l->>'itemId', l->>'name', coalesce(l->>'barcode',''), (l->>'price')::numeric,
          (l->>'qty')::numeric, coalesce(l->>'unit',''), (l->>'subtotal')::numeric
-  from jsonb_array_elements(sales_sp08) s,
+  from jsonb_array_elements(sales) s,
        jsonb_array_elements(coalesce(s->'lines','[]'::jsonb)) l;
 end;
 $$;
@@ -845,7 +845,7 @@ $$;
 -- immediately — each only touches its own table, so editing inventory never
 -- has to resend sales_sp08 history (and vice versa).
 
-create or replace function sync_replace_items_sp08(items_sp08 jsonb)
+create or replace function sync_replace_items_sp08(items jsonb)
 returns void
 language plpgsql
 security definer
@@ -857,7 +857,7 @@ begin
   select x->>'id', x->>'name', coalesce(x->>'barcode',''), coalesce(x->>'category',''),
          coalesce((x->>'price')::numeric,0), coalesce((x->>'cost')::numeric,0), coalesce((x->>'stock')::numeric,0),
          coalesce(x->>'unit',''), coalesce((x->>'lowStock')::numeric,0), coalesce(x->>'expiry','')
-  from jsonb_array_elements(items_sp08) x;
+  from jsonb_array_elements(items) x;
 end;
 $$;
 
@@ -876,7 +876,7 @@ begin
 end;
 $$;
 
-create or replace function sync_replace_categories_sp08(categories_sp08 jsonb)
+create or replace function sync_replace_categories_sp08(categories jsonb)
 returns void
 language plpgsql
 security definer
@@ -885,11 +885,11 @@ as $$
 begin
   delete from categories_sp08 where true;
   insert into categories_sp08 (name)
-  select jsonb_array_elements_text(categories_sp08);
+  select jsonb_array_elements_text(categories);
 end;
 $$;
 
-create or replace function sync_replace_suppliers_sp08(suppliers_sp08 jsonb)
+create or replace function sync_replace_suppliers_sp08(suppliers jsonb)
 returns void
 language plpgsql
 security definer
@@ -899,11 +899,11 @@ begin
   delete from suppliers_sp08 where true;
   insert into suppliers_sp08 (id, name, contact, address)
   select x->>'id', x->>'name', coalesce(x->>'contact',''), coalesce(x->>'address','')
-  from jsonb_array_elements(suppliers_sp08) x;
+  from jsonb_array_elements(suppliers) x;
 end;
 $$;
 
-create or replace function sync_replace_cashiers_sp08(cashiers_sp08 jsonb)
+create or replace function sync_replace_cashiers_sp08(cashiers jsonb)
 returns void
 language plpgsql
 security definer
@@ -913,11 +913,11 @@ begin
   delete from cashiers_sp08 where true;
   insert into cashiers_sp08 (id, name, pin)
   select x->>'id', x->>'name', coalesce(x->>'pin','')
-  from jsonb_array_elements(cashiers_sp08) x;
+  from jsonb_array_elements(cashiers) x;
 end;
 $$;
 
-create or replace function sync_replace_purchases_sp08(purchases_sp08 jsonb)
+create or replace function sync_replace_purchases_sp08(purchases jsonb)
 returns void
 language plpgsql
 security definer
@@ -931,11 +931,11 @@ begin
          x->>'supplierId', x->>'supplierName', x->>'itemId', x->>'itemName',
          (x->>'qty')::numeric, (x->>'cost')::numeric, (x->>'total')::numeric, coalesce(x->>'notes',''),
          x->>'proof', x->>'proofName'
-  from jsonb_array_elements(purchases_sp08) x;
+  from jsonb_array_elements(purchases) x;
 end;
 $$;
 
-create or replace function sync_replace_expenses_sp08(expenses_sp08 jsonb)
+create or replace function sync_replace_expenses_sp08(expenses jsonb)
 returns void
 language plpgsql
 security definer
@@ -946,11 +946,11 @@ begin
   insert into expenses_sp08 (id, date, period, category, amount, notes)
   select x->>'id', nullif(x->>'date','')::date, coalesce(x->>'period',''), coalesce(x->>'category',''),
          coalesce((x->>'amount')::numeric,0), coalesce(x->>'notes','')
-  from jsonb_array_elements(expenses_sp08) x;
+  from jsonb_array_elements(expenses) x;
 end;
 $$;
 
-create or replace function sync_replace_customers_sp08(customers_sp08 jsonb)
+create or replace function sync_replace_customers_sp08(customers jsonb)
 returns void
 language plpgsql
 security definer
@@ -960,7 +960,7 @@ begin
   delete from customers_sp08 where true;
   insert into customers_sp08 (id, name, phone, notes, balance)
   select x->>'id', x->>'name', coalesce(x->>'phone',''), coalesce(x->>'notes',''), coalesce((x->>'balance')::numeric,0)
-  from jsonb_array_elements(customers_sp08) x;
+  from jsonb_array_elements(customers) x;
 end;
 $$;
 
@@ -979,7 +979,7 @@ begin
 end;
 $$;
 
-create or replace function sync_replace_held_sales_sp08(held_sales_sp08 jsonb)
+create or replace function sync_replace_held_sales_sp08("heldSales" jsonb)
 returns void
 language plpgsql
 security definer
@@ -990,16 +990,16 @@ begin
   delete from held_sales_sp08 where true;
   insert into held_sales_sp08 (id, date, customer, discount, tax, cashier)
   select x->>'id', (x->>'date')::timestamptz, x->>'customer', (x->>'discount')::numeric, (x->>'tax')::numeric, x->>'cashier'
-  from jsonb_array_elements(held_sales_sp08) x;
+  from jsonb_array_elements("heldSales") x;
 
   insert into held_sales_cart_sp08 (held_id, item_id, qty)
   select h->>'id', c->>'itemId', (c->>'qty')::numeric
-  from jsonb_array_elements(held_sales_sp08) h,
+  from jsonb_array_elements("heldSales") h,
        jsonb_array_elements(coalesce(h->'cart','[]'::jsonb)) c;
 end;
 $$;
 
-create or replace function sync_replace_shifts_sp08(shifts_sp08 jsonb)
+create or replace function sync_replace_shifts_sp08(shifts jsonb)
 returns void
 language plpgsql
 security definer
@@ -1012,11 +1012,11 @@ begin
          (x->>'openingCash')::numeric, (x->>'cashSales')::numeric, (x->>'cardSales')::numeric, (x->>'walletSales')::numeric,
          (x->>'cashRefunds')::numeric, (x->>'txnCount')::integer, (x->>'expectedCash')::numeric,
          (x->>'actualCash')::numeric, (x->>'difference')::numeric, coalesce(x->>'notes','')
-  from jsonb_array_elements(shifts_sp08) x;
+  from jsonb_array_elements(shifts) x;
 end;
 $$;
 
-create or replace function sync_replace_active_shift_sp08(active_shift_sp08 jsonb)
+create or replace function sync_replace_active_shift_sp08("activeShift" jsonb)
 returns void
 language plpgsql
 security definer
@@ -1024,20 +1024,20 @@ set search_path = public
 as $$
 begin
   delete from active_shift_sp08 where true;
-  if active_shift_sp08 is not null and active_shift_sp08 != 'null'::jsonb then
+  if "activeShift" is not null and "activeShift" != 'null'::jsonb then
     insert into active_shift_sp08 (id, cashier_id, cashier_name, start, opening_cash)
     values (
-      active_shift_sp08->>'id',
-      active_shift_sp08->>'cashierId',
-      active_shift_sp08->>'cashierName',
-      (active_shift_sp08->>'start')::timestamptz,
-      (active_shift_sp08->>'openingCash')::numeric
+      "activeShift"->>'id',
+      "activeShift"->>'cashierId',
+      "activeShift"->>'cashierName',
+      ("activeShift"->>'start')::timestamptz,
+      ("activeShift"->>'openingCash')::numeric
     );
   end if;
 end;
 $$;
 
-create or replace function sync_replace_settings_sp08(settings_sp08 jsonb)
+create or replace function sync_replace_settings_sp08(settings jsonb)
 returns void
 language plpgsql
 security definer
@@ -1047,7 +1047,7 @@ begin
   delete from settings_sp08 where true;
   insert into settings_sp08 (key, value)
   select k, v
-  from jsonb_each_text(settings_sp08) as t(k, v);
+  from jsonb_each_text(settings) as t(k, v);
 end;
 $$;
 
